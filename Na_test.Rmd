@@ -1,0 +1,11 @@
+---
+title: "Na_test"
+output: html_document
+author: "Yida Wang"
+date: "2022-10-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
