@@ -39,7 +39,8 @@ summary(data)
 
 Basic summary
 ```{r warning = FALSE, message = FALSE}
-tbl_summary(
+table1 = 
+  tbl_summary(
     data[ ,2:20],
     by = drug, 
     missing = "no" 
@@ -50,6 +51,7 @@ tbl_summary(
   modify_header(label = "**Variable**") %>% 
   bold_labels()
 
+knitr::knit_print(table1)
 ```
 
 
