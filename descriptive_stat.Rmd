@@ -39,8 +39,7 @@ summary(data)
 
 Basic summary
 ```{r warning = FALSE, message = FALSE}
-table1 = 
-  tbl_summary(
+tbl_summary(
     data[ ,2:20],
     by = drug, 
     missing = "no" 
@@ -51,7 +50,6 @@ table1 =
   modify_header(label = "**Variable**") %>% 
   bold_labels()
 
-table1
 ```
 
 
