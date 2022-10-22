@@ -29,11 +29,12 @@ data =
          edema = as.factor(edema),
          stage = as.factor(stage))
 
+# age in days, if we want to convert age to years:
+# data['age'] = (data['age']/365) %>% round(0)
+
 data_no_na = data %>% na.omit()
   
-
 summary(data)
-# note: age in days
 ```
 
 
