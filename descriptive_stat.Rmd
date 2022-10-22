@@ -1,9 +1,141 @@
 ---
 title: "Cirrhosis Descriptive Statistics"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(gtsummary)
+library(caret)
+library(patchwork)
 ```
+
+
+Data
+```{r}
+data = read_csv('cirrhosis.csv')
+
+data = 
+  data %>%
+  janitor::clean_names() %>%
+  mutate(status = as.factor(status),
+         drug = as.factor(drug),
+         sex = as.factor(sex),
+         ascites = as.factor(ascites),
+         hepatomegaly = as.factor(hepatomegaly),
+         spiders = as.factor(spiders),
+         edema = as.factor(edema),
+         stage = as.factor(stage))
+
+data_no_na = data %>% na.omit()
+  
+
+summary(data)
+# note: age in days
+```
+
+
+Basic summary
+```{r}
+table1 = 
+  tbl_summary(
+    data[ ,2:20],
+    by = drug, 
+    missing = "no" 
+  ) %>%
+  add_n() %>% # total number of non-missing observations
+  add_p() %>% # difference between groups
+  add_overall() %>%
+  modify_header(label = "**Variable**") %>% 
+  bold_labels()
+
+table1
+```
+
+
+Corrplot
+```{r}
+data_cor = 
+  data_no_na[ ,2:20] %>%
+  mutate(status = recode(status, "C" = 1, "CL" = 2, "D" = 3), 
+         # C=censored, CL=censored due to liver tx, D=death
+         sex = recode(sex, "F" = 0, "M" = 1),
+         # 0=female, 1=male
+         drug = recode(drug, "Placebo" = 0, "D-penicillamine" = 1),
+         # 0=placebo, 1=trt
+         ascites = recode(ascites, "N" = 0, "Y" = 1),
+         hepatomegaly = recode(hepatomegaly, "N" = 0, "Y" = 1),
+         spiders = recode(spiders, "N" = 0, "Y" = 1),
+         edema = recode(edema, "N" = 0, "S" = 1, "Y" = 2),
+         # N = no edema and no diuretic therapy for edema,
+         # S = edema present without diuretics, or edema resolved by diuretics)
+         # Y = edema despite diuretic therapy
+         stage = as.numeric(stage))
+
+data_cor %>%
+  select_if(is.numeric) %>%
+  cor() %>% 
+  corrplot::corrplot(type = "lower")
+```
+
+
+Distribution of `status`
+```{r}
+ggplot(data_no_na, aes(x = status, fill = status)) +
+  geom_bar() +
+  labs(title = "Status")
+
+```
+
+
+Categorical variables by status
+```{r}
+a = ggplot(data_no_na, aes(x = drug, fill = status)) +
+  geom_bar() +
+  labs(title = "Drug")
+
+b = ggplot(data_no_na, aes(x = sex, fill = status)) +
+  geom_bar() +
+  labs(title = "Sex")
+
+c = ggplot(data_no_na, aes(x = ascites, fill = status)) +
+  geom_bar() +
+  labs(title = "Ascites")
+
+d = ggplot(data_no_na, aes(x = hepatomegaly, fill = status)) +
+  geom_bar() +
+  labs(title = "Hepatomegaly")
+
+e = ggplot(data_no_na, aes(x = spiders, fill = status)) +
+  geom_bar() +
+  labs(title = "Spiders")
+
+f = ggplot(data_no_na, aes(x = edema, fill = status)) +
+  geom_bar() +
+  labs(title = "Edema")
+
+
+(a + b + c) / (d + e + f)
+
+
+# By Stage
+ggplot(data_no_na, aes(x = stage, fill = status)) +
+  geom_bar() +
+  labs(title = "Stage")
+```
+
+
+Continuous variable distributions
+```{r}
+featurePlot(x = data_no_na[,c(2, 5, 11:19)], 
+            y = data_no_na$status,
+            scales = list(x = list(relation = "free"), 
+                          y = list(relation = "free")),
+            plot = "density", pch = "|", 
+            auto.key = list(columns = 3))
+```
+
+
 
