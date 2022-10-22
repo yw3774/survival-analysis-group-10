@@ -38,7 +38,7 @@ summary(data)
 
 
 Basic summary
-```{r}
+```{r warning = FALSE, message = FALSE}
 table1 = 
   tbl_summary(
     data[ ,2:20],
