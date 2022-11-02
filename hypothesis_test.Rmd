@@ -1,0 +1,80 @@
+---
+title: "Hypothesis Test"
+author: "Ying Jin"
+date: "2022-11-02"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(survival)
+library(ggplot2)
+library(survminer)
+library(rms)
+library(survMisc)
+```
+
+Prepare the data
+
+```{r}
+pbc_data = 
+  read_csv("./cirrhosis.csv") %>% 
+  janitor::clean_names() %>%
+  mutate(status = as.factor(status),
+         drug = as.factor(drug),
+         sex = as.factor(sex),
+         ascites = as.factor(ascites),
+         hepatomegaly = as.factor(hepatomegaly),
+         spiders = as.factor(spiders),
+         edema = as.factor(edema),
+         stage = as.factor(stage)) %>% 
+  mutate(status=recode(status,"D" =1, "C"=0,"CL"=0))
+```
+
+## Log Rank Test
+
+Using the log rank test, we want to test whether the occurrence of death in the D-penicillamine group ($S_1(t)$) delayed compared to the placebo group($S_0(t)$). The hypothese are as below:$$H_0:S_1(t) \le S_0(t)\\H_1:S_1(t) > S_0(t)$$
+
+Conducting log rank test:
+
+```{r}
+# get rid of records which have no drug info
+
+pbc_data_1 = 
+  pbc_data %>% 
+  drop_na(drug)
+
+# K-M methods
+pbc_kmsurvfit = 
+  survfit(formula = Surv(n_days,status)~drug,data = pbc_data_1)
+
+# plot K_m curve
+ggsurvplot(pbc_kmsurvfit,
+           pval = TRUE, conf.int = TRUE,
+           risk.table = TRUE, # Add risk table
+           risk.table.col = "strata", # Change risk table color by groups
+           linetype = "strata", # Change line type by groups
+           surv.median.line = "hv", # Specify median survival
+           ggtheme = theme_bw(), # Change ggplot2 theme
+           palette = c("#E7B800", "#2E9FDF"))
+
+# log rank test
+survdiff(Surv(n_days,status)~drug,data = pbc_data_1)
+```
+
+Since the $P\ value$ is $0.7 > 0.05$ (significance level), we fail to reject the null hypothesis and conclude that the survival probability in D-penicillamine group is significantly lower than that in the placebo group.
+
+## Other Test
+
+Using Gehan-Breslow generalized Wilcoxon, Tarone-Ware, Peto-Peto's, Fleming-Harrington test, the results are as follow:
+
+Conducting log rank test:
+
+```{r}
+comp(ten(pbc_kmsurvfit))
+
+```
+
+We can see that using different weights, the test results are the same: the survival probability in D-penicillamine group is significantly lower than that in the placebo group.
