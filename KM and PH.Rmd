@@ -1,0 +1,185 @@
+---
+title: "KM estimator"
+author: "Yiming Li"
+output: html_document
+---
+
+```{r}
+library(survival)
+library(biostat3)
+library(tidyverse)
+library(ggplot2)
+library(ggfortify)
+library(patchwork)
+library(flexsurv)
+library(MASS)
+```
+
+
+```{r}
+data = read.csv("./cirrhosis.csv") %>% 
+  mutate(Status = case_when(
+    Status == "CL" ~ 0,
+    Status == "C" ~ 0,
+    Status == "D" ~ 1,
+  ))
+data = na.omit(data)
+data = data[,2:20]
+```
+
+## lifetable
+
+```{r}
+full = lifetab2(Surv(N_Days, Status == 1) ~ 1, data, breaks = seq(0, 5000, 500))
+full
+```
+
+```{r}
+hazard = data.frame(cbind(full[1:10,]$tstart, full[1:10,]$hazard, rep("full"))) %>% 
+  rename(full = X3, hazard = X2, time = X1) %>% 
+  mutate(time = as.numeric(time),
+         hazard = as.numeric(hazard))
+
+ggplot(hazard, aes(x = time, y = hazard)) +
+  geom_point() + 
+  geom_line() +
+  labs(title = "Hazard function",
+       x = "Time",
+       y = "Hazard function")
+```
+
+```{r}
+max(pull(data %>% filter(Sex == "M"), N_Days))
+sexm = lifetab2(Surv(N_Days, Status == 1) ~ 1, data %>% filter(Sex == "M"), breaks = seq(0, 5000, 500))
+sexm
+```
+
+```{r}
+max(pull(data %>% filter(Sex == "F"), N_Days))
+sexf = lifetab2(Surv(N_Days, Status == 1) ~ 1, data %>% filter(Sex == "F"), breaks = seq(0, 5000, 500))
+sexf
+```
+
+based on drug
+```{r}
+max(pull(data %>% filter(Drug == "D-penicillamine"), N_Days))
+drug = lifetab2(Surv(N_Days, Status == 1) ~ 1, data %>% filter(Sex == "M"), breaks = seq(0, 5000, 500))
+drug
+```
+
+```{r}
+max(pull(data %>% filter(Drug == "Placebo"), N_Days))
+placebo = lifetab2(Surv(N_Days, Status == 1) ~ 1, data %>% filter(Sex == "M"), breaks = seq(0, 5000, 500))
+placebo
+```
+
+## Plot hazard function by rxbased on life-table estimate
+```{r}
+hazard = data.frame(rbind(cbind(sexm[1:9,]$tstart, sexm[1:9,]$hazard, rep("sex m")),
+               cbind(sexf[1:10,]$tstart, sexf[1:10,]$hazard, rep("sex f")))) %>% 
+  rename(sex = X3, hazard = X2, time = X1) %>% 
+  mutate(time = as.numeric(time),
+         hazard = as.numeric(hazard))
+
+ggplot(hazard, aes(x = time, y = hazard, color = sex)) +
+  geom_point() + 
+  geom_line() +
+  labs(title = "Hazard function different sex",
+       x = "Time",
+       y = "Hazard function")
+```
+
+
+## Plot K-M survival function by sex
+```{r}
+km <- survfit(Surv(N_Days, Status) ~ Sex, data = data, type = c("kaplan-meier"))
+autoplot(km) + 
+  labs(x = "Survival time", y = "Survival prpbaibility",
+  title = "KM Survival Time of different sex groups" )
+```
+
+## What is the median survival time for each sex group?
+```{r}
+summary(km)
+```
+
+
+## Compare survival function estimations between K-M and F-H methods
+```{r}
+fh <- survfit(Surv(N_Days, Status) ~ Sex, data = data, type = c("fleming-harrington"))
+autoplot(fh) + 
+  labs(x = "Survival time", y = "Survival prpbaibility",
+  title = "FH Survival Time of different sex groups" )
+```
+
+```{r}
+summary(fh)
+```
+
+
+## PH model
+
+Select by significant level
+```{r}
+fit1 = coxph(Surv(N_Days, Status) ~ ., data = data)
+summary(fit1)
+```
+Age, Edema, Bilirubin, Albumin, Copper, Prothrombin, Stage
+
+## A submodel
+```{r}
+fit2 = coxph(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage, data = data)
+summary(fit2)
+```
+
+```{r}
+anova(fit2, fit1, test = 'F')
+```
+
+fail to reject null and conclude no difference
+
+
+## backward selection
+```{r}
+step.model.back = step(fit1, direction = "backward")
+```
+
+Edema, Prothrombin, SGOT, Albumin, Copper, Age, Stage, Bilirubin
+
+
+
+## A submodel
+```{r}
+fit3 = coxph(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data)
+summary(fit3)
+```
+
+```{r}
+anova(fit3, fit1, test = 'F')
+```
+
+## both selection
+```{r}
+step.model.both = step(fit1, direction = "both")
+```
+
+Cholesterol, Sex, Drug, Platelets, Hepatomegaly, Spiders, Alk_Phos, Tryglicerides, Ascites, Edema, Prothrombin, SGOT, Copper, Age, Stage, Bilirubin
+
+
+
+## A submodel
+```{r}
+fit4 = coxph(Surv(N_Days, Status) ~ Cholesterol + Sex + Drug + Platelets + Hepatomegaly + Spiders + Alk_Phos + Tryglicerides + Ascites + Edema + Prothrombin + SGOT + Copper + Age + Stage + Bilirubin, data = data)
+summary(fit4)
+```
+
+```{r}
+anova(fit4, fit1, test = 'F')
+```
+
+## 
+```{r}
+surv_diff <- survdiff(Surv(N_Days, Status) ~ Sex, data = data)
+surv_diff
+```
+
