@@ -1,0 +1,170 @@
+---
+title: "Sample_size_na_test&cox model"
+output: github_document
+author: "Yida Wang"
+date: "2022-10-15"
+---
+# Sample Size Analysis
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library("pwr")
+library(survival)
+library(survminer)
+```
+
+```{r}
+data = read_csv('cirrhosis.csv')
+
+data = 
+  data %>%
+  janitor::clean_names() %>%
+  mutate(status = as.factor(status),
+         drug = as.factor(drug),
+         sex = as.factor(sex),
+         ascites = as.factor(ascites),
+         hepatomegaly = as.factor(hepatomegaly),
+         spiders = as.factor(spiders),
+         edema = as.factor(edema),
+         stage = as.factor(stage))
+
+# age in days, if we want to convert age to years:
+# data['age'] = (data['age']/365) %>% round(0)
+
+data
+
+```
+
+
+```{r}
+data %>% 
+  filter(drug=="Placebo") %>% 
+  group_by(drug) %>% 
+  count(drug)
+```
+```{r}
+data %>% 
+  filter(drug=="D-penicillamine") %>% 
+  group_by(drug) %>% 
+  count(drug)
+```
+
+```{r}
+data_no_na = data %>% na.omit()
+```
+
+```{r}
+control_1=data_no_na %>% 
+  filter(drug=="Placebo") %>% 
+  group_by(drug)
+control_1%>% 
+  count(drug)
+```
+```{r}
+treatment_1=data_no_na %>% 
+  filter(drug=="D-penicillamine") %>% 
+  group_by(drug) 
+treatment_1%>% 
+  count(drug)
+```
+```{r}
+mean1=mean(control_1$n_days)
+mean2=mean(treatment_1$n_days)
+mean1
+mean2
+sd1=sd(control_1$n_days)
+sd2=sd(treatment_1$n_days)
+sd1
+sd2
+sd_pooled=sqrt((sd1^2+sd2^2)/2)
+es=(mean1-mean2)/sd_pooled
+es
+```
+
+80%power-Z:0.84
+```{r}
+
+((1.96-1.28)/log(median2/median1))^2
+```
+
+```{r}
+pwr.t.test(d=es, sig.level=0.05, power=0.80, type='two.sample', alternative='greate')
+```
+
+Assign Placebo as the reference with 50% response rate. We assume that D-penicillamine is slightly better with a response rate of 60%. $$p_1=0.6, p_2=0.5$$Therefore, we have:
+```{r}
+power1 <-pwr.2p.test(h = ES.h(p1 = 0.7, p2 = 0.50), sig.level = 0.05, power = .80)
+power1
+```
+
+```{r}
+plot(power1)
+```
+```{r}
+expLogMeanDeaths = function(Delta, alpha, pwr){
+  z.alpha = qnorm(alpha, lower.tail=F)
+  z.beta = qnorm(1-pwr, lower.tail=F)
+  num = (z.alpha + z.beta)^2
+  denom = (log(Delta))^2
+  dd = num/denom
+  dd
+}
+```
+
+
+
+```{r}
+# Log-mean based approach
+expLogMeanDeaths(Delta = 1.004754, alpha = 0.05, pwr = 0.8)
+```
+
+## cox model
+
+```{r}
+library(survival)
+pbc_data = 
+  read_csv("./cirrhosis.csv") %>% 
+  janitor::clean_names() %>%
+  mutate(status = as.factor(status),
+         drug = as.factor(drug),
+         sex = as.factor(sex),
+         ascites = as.factor(ascites),
+         hepatomegaly = as.factor(hepatomegaly),
+         spiders = as.factor(spiders),
+         edema = as.factor(edema),
+         stage = as.factor(stage)) %>% 
+  mutate(status=recode(status,"D" =1, "C"=0,"CL"=0))
+
+pbc_data_1 = 
+  pbc_data %>% 
+  drop_na(drug)
+
+futime=Surv(pbc_data_1$n_days,pbc_data_1$status)
+```
+
+```{r}
+res.cox <- coxph(futime ~ drug + age + sex + ascites + hepatomegaly + 
+                   spiders + edema + bilirubin + cholesterol + albumin + copper + alk_phos + 
+                   sgot + tryglicerides +platelets+ prothrombin + stage , data = pbc_data_1)
+test.ph <- cox.zph(res.cox)
+test.ph
+```
+```{r}
+broom::tidy(res.cox)
+```
+#general survival curve
+```{r}
+plot(surv_fit(res.cox, data=pbc_data_1))
+```
+
+```{r}
+strata1 <- coxph(futime ~ drug + age + strata(sex) + ascites + hepatomegaly + 
+                   spiders + edema + bilirubin + cholesterol + albumin + copper + alk_phos + 
+                   sgot + tryglicerides +platelets+ prothrombin + stage , data = pbc_data_1)
+
+plot(surv_fit(strata1, pbc_data_1))
+
+##can't use autoplot??
+```
+
