@@ -13,6 +13,7 @@ library(ggfortify)
 library(patchwork)
 library(flexsurv)
 library(MASS)
+library(corrplot)
 ```
 
 
@@ -133,7 +134,7 @@ summary(fit2)
 ```
 
 ```{r}
-anova(fit2, fit1, test = 'F')
+anova(fit1, fit2, test = 'F')
 ```
 
 fail to reject null and conclude no difference
@@ -148,14 +149,14 @@ Edema, Prothrombin, SGOT, Albumin, Copper, Age, Stage, Bilirubin
 
 
 
-## A submodel
+## A submodel based on backward
 ```{r}
 fit3 = coxph(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data)
 summary(fit3)
 ```
 
 ```{r}
-anova(fit3, fit1, test = 'F')
+anova(fit1, fit3, test = 'F')
 ```
 
 ## both selection
@@ -182,4 +183,13 @@ anova(fit4, fit1, test = 'F')
 surv_diff <- survdiff(Surv(N_Days, Status) ~ Sex, data = data)
 surv_diff
 ```
+
+
+## correlation plot
+```{r}
+data2 = data.frame(lapply(lapply(data,as.factor), as.numeric))
+corrplot(cor(data2))
+```
+
+
 
