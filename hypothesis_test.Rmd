@@ -33,9 +33,11 @@ pbc_data =
   mutate(status=recode(status,"D" =1, "C"=0,"CL"=0))
 ```
 
-## Log Rank Test
+## Test for Treatment
 
-Using the log rank test, we want to test whether the occurrence of death in the D-penicillamine group ($S_1(t)$) delayed compared to the placebo group($S_0(t)$). The hypothese are as below:$$H_0:S_1(t) \le S_0(t)\\H_1:S_1(t) > S_0(t)$$
+### Log Rank Test
+
+Using the log rank test, we want to test whether the occurrence of death in the D-penicillamine group ($S_1(t)$) delayed compared to the placebo group($S_0(t)$). The hypotheses are as below:$$H_0:S_1(t) = S_0(t)\\H_1:S_1(t) > S_0(t)$$
 
 Conducting log rank test:
 
@@ -47,11 +49,11 @@ pbc_data_1 =
   drop_na(drug)
 
 # K-M methods
-pbc_kmsurvfit = 
+pbc_kmsurvfit_1 = 
   survfit(formula = Surv(n_days,status)~drug,data = pbc_data_1)
 
 # plot K_m curve
-ggsurvplot(pbc_kmsurvfit,
+ggsurvplot(pbc_kmsurvfit_1,
            pval = TRUE, conf.int = TRUE,
            risk.table = TRUE, # Add risk table
            risk.table.col = "strata", # Change risk table color by groups
@@ -64,17 +66,138 @@ ggsurvplot(pbc_kmsurvfit,
 survdiff(Surv(n_days,status)~drug,data = pbc_data_1)
 ```
 
-Since the $P\ value$ is $0.7 > 0.05$ (significance level), we fail to reject the null hypothesis and conclude that the survival probability in D-penicillamine group is significantly lower than that in the placebo group.
+Since the $P\ value$ is $0.7 > 0.05$ (significance level), we fail to reject the null hypothesis and conclude that the survival probability in D-penicillamine group is not significantly different from that in the placebo group.
 
-## Other Test
+### Other Test
 
 Using Gehan-Breslow generalized Wilcoxon, Tarone-Ware, Peto-Peto's, Fleming-Harrington test, the results are as follow:
+
+```{r}
+comp(ten(pbc_kmsurvfit_1))
+
+```
+
+We can see that using different weights, the test results are the same: the survival probability in D-penicillamine group is not significantly different from that in the placebo group.
+
+These tests is unlikely to detect a difference when survival curves cross, which is the case in our data.
+
+## Test for Stage
+
+### Log Rank Test
+
+Using the log rank test, we want to test whether the occurrence of death in different disease stage ($S_1(t)$， $S_2(t)$，$S_3(t)$ and $S_4(t)$ correspondingly) are different. The hypotheses are as below:$$H_0:S_1(t) = S_2(t)= S_3(t)= S_4(t)\\H_1:S_1(t)，S_2(t)，S_3(t) and S_4(t)$$ are not all equal.
 
 Conducting log rank test:
 
 ```{r}
-comp(ten(pbc_kmsurvfit))
+# get rid of records which have no stage info
+
+pbc_data_2 = 
+  pbc_data %>% 
+  drop_na(stage)
+
+# K-M methods
+pbc_kmsurvfit_2 = 
+  survfit(formula = Surv(n_days,status)~stage,data = pbc_data_2)
+
+# plot K_m curve
+ggsurvplot(pbc_kmsurvfit_2,
+           pval = TRUE, conf.int = TRUE,
+           risk.table = TRUE, # Add risk table
+           risk.table.col = "strata", # Change risk table color by groups
+           linetype = "strata", # Change line type by groups
+           surv.median.line = "hv", # Specify median survival
+           ggtheme = theme_bw()) # Change ggplot2 theme
+           #,palette = c("#E7B800", "#2E9FDF"))
+
+# log rank test
+survdiff(Surv(n_days,status)~stage,data = pbc_data_2)
+```
+
+Since the $P\ value$ is $4\times10^{-15} < 0.05$ (significance level), we reject the null hypothesis and conclude that at least two of the survival probability from the four disease stage groups is significantly different.
+
+### Other Test
+
+Using Gehan-Breslow generalized Wilcoxon, Tarone-Ware, Peto-Peto's, Fleming-Harrington test, the results are as follow:
+
+```{r}
+comp(ten(pbc_kmsurvfit_2))
 
 ```
 
-We can see that using different weights, the test results are the same: the survival probability in D-penicillamine group is significantly lower than that in the placebo group.
+We can see that using different weights, the test results are consistent with that of the log rank test.
+
+Then we conduct multiple pairwise comparisons to see which groups have different survival probability.
+
+```{r}
+res_2 = pairwise_survdiff(Surv(n_days,status)~stage,data = pbc_data_2, p.adjust.method = "bonferroni",rho = 0)
+
+res_2
+
+symnum(res_2$p.value, cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 0.1, 1),
+   symbols = c("****", "***", "**", "*", "+", " "),
+   abbr.colnames = FALSE, na = "")
+
+```
+
+Base on above results， we can tell that the survival chance for patients in stage 4 is significantly lower than that of other patients, which can be seen clearly in the KM curve. 
+
+## Test for Edema
+
+### Log Rank Test
+
+Using the log rank test, we want to test whether the occurrence of death for patients with different edema status ($S_N(t)$， $S_S(t)$ and $S_Y(t)$ correspondingly) are different. The hypotheses are as below:$$H_0:S_N(t) = S_S(t)= S_Y(t)\\H_1:S_N(t)，S_S(t)，and S_Y(t)$$ are not all equal.
+
+Conducting log rank test:
+
+```{r}
+# get rid of records which have no edema info
+
+pbc_data_3 = 
+  pbc_data %>% 
+  drop_na(edema)
+
+# K-M methods
+pbc_kmsurvfit_3 = 
+  survfit(formula = Surv(n_days,status)~edema,data = pbc_data_3)
+
+# plot K_m curve
+ggsurvplot(pbc_kmsurvfit_3,
+           pval = TRUE, conf.int = TRUE,
+           risk.table = TRUE, # Add risk table
+           risk.table.col = "strata", # Change risk table color by groups
+           linetype = "strata", # Change line type by groups
+           surv.median.line = "hv", # Specify median survival
+           ggtheme = theme_bw()) # Change ggplot2 theme
+           #,palette = c("#E7B800", "#2E9FDF"))
+
+# log rank test
+survdiff(Surv(n_days,status)~edema,data = pbc_data_3)
+```
+
+Since the $P\ value$ is $2\times10^{-16} < 0.05$ (significance level), we reject the null hypothesis and conclude that at least two of the survival probability from the three edema groups is significantly different.
+
+### Other Test
+
+Using Gehan-Breslow generalized Wilcoxon, Tarone-Ware, Peto-Peto's, Fleming-Harrington test, the results are as follow:
+
+```{r}
+comp(ten(pbc_kmsurvfit_3))
+
+```
+
+We can see that using different weights, the test results are consistent with that of the log rank test.
+
+Then we conduct multiple pairwise comparisons to see which groups have different survival probability.
+
+```{r}
+res_3 = pairwise_survdiff(Surv(n_days,status)~edema,data = pbc_data_3, p.adjust.method = "bonferroni",rho = 0)
+res_3
+
+symnum(res_3$p.value, cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 0.1, 1),
+   symbols = c("****", "***", "**", "*", "+", " "),
+   abbr.colnames = FALSE, na = "")
+
+```
+
+Base on above results， we can tell that the survival chance for patients in the three edema groups is all different. In addition, according to the KM plot，we can see the trend is: $S_N(t)>S_S(t)>S_Y(t)$
