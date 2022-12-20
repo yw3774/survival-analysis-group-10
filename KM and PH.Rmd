@@ -14,6 +14,8 @@ library(patchwork)
 library(flexsurv)
 library(MASS)
 library(corrplot)
+library(eha)
+library(survminer)
 ```
 
 
@@ -32,7 +34,7 @@ data = data[,2:20]
 
 ```{r}
 full = lifetab2(Surv(N_Days, Status == 1) ~ 1, data, breaks = seq(0, 5000, 500))
-full
+knitr::kable(full)
 ```
 
 ```{r}
@@ -64,14 +66,30 @@ sexf
 based on drug
 ```{r}
 max(pull(data %>% filter(Drug == "D-penicillamine"), N_Days))
-drug = lifetab2(Surv(N_Days, Status == 1) ~ 1, data %>% filter(Sex == "M"), breaks = seq(0, 5000, 500))
+drug = lifetab2(Surv(N_Days, Status == 1) ~ 1, data %>% filter(Drug == "D-penicillamine"), breaks = seq(0, 5000, 500))
 drug
 ```
 
 ```{r}
 max(pull(data %>% filter(Drug == "Placebo"), N_Days))
-placebo = lifetab2(Surv(N_Days, Status == 1) ~ 1, data %>% filter(Sex == "M"), breaks = seq(0, 5000, 500))
+placebo = lifetab2(Surv(N_Days, Status == 1) ~ 1, data %>% filter(Drug == "Placebo"), breaks = seq(0, 5000, 500))
 placebo
+```
+
+## Plot hazard function by trt on life-table estimate
+```{r}
+hazard = data.frame(rbind(cbind(drug[1:10,]$tstart, drug[1:10,]$hazard, rep("D-penicillamine")),
+               cbind(placebo[1:10,]$tstart, placebo[1:10,]$hazard, rep("Placebo")))) %>% 
+  rename(drug = X3, hazard = X2, time = X1) %>% 
+  mutate(time = as.numeric(time),
+         hazard = as.numeric(hazard))
+
+ggplot(hazard, aes(x = time, y = hazard, color = drug)) +
+  geom_point() + 
+  geom_line() +
+  labs(title = "Hazard Function Different Drug",
+       x = "Time",
+       y = "Hazard function")
 ```
 
 ## Plot hazard function by rxbased on life-table estimate
@@ -93,10 +111,10 @@ ggplot(hazard, aes(x = time, y = hazard, color = sex)) +
 
 ## Plot K-M survival function by sex
 ```{r}
-km <- survfit(Surv(N_Days, Status) ~ Sex, data = data, type = c("kaplan-meier"))
+km <- survfit(Surv(N_Days, Status) ~ Drug, data = data, type = c("kaplan-meier"))
 autoplot(km) + 
   labs(x = "Survival time", y = "Survival prpbaibility",
-  title = "KM Survival Time of different sex groups" )
+  title = "KM Survival Time of different drug groups" )
 ```
 
 ## What is the median survival time for each sex group?
@@ -107,10 +125,10 @@ summary(km)
 
 ## Compare survival function estimations between K-M and F-H methods
 ```{r}
-fh <- survfit(Surv(N_Days, Status) ~ Sex, data = data, type = c("fleming-harrington"))
+fh <- survfit(Surv(N_Days, Status) ~ Drug, data = data, type = c("fleming-harrington"))
 autoplot(fh) + 
   labs(x = "Survival time", y = "Survival prpbaibility",
-  title = "FH Survival Time of different sex groups" )
+  title = "FH Survival Time of different drug groups" )
 ```
 
 ```{r}
@@ -191,5 +209,62 @@ data2 = data.frame(lapply(lapply(data,as.factor), as.numeric))
 corrplot(cor(data2))
 ```
 
+## Model Checking 
+```{r}
+#fit3 = coxph(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data)
+par(mfrow = c(2, 4))
+plot(cox.zph(fit3))
+```
 
+## parametric 
+```{r}
+fit_ph1 <- phreg(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data2, dist = "weibull")
+summary(fit_ph1)
+```
+
+
+```{r}
+fit_cox1 = coxreg(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data2)
+## same to coxph
+summary(fit_cox1)  
+```
+
+
+
+```{r}
+#(weibull", "gompertz", "lognormal", "llogis", "gengamma")
+fit_ph2 <- phreg(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data2, dist = "gompertz")
+
+fit_ph3 <- phreg(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data2, dist = "lognormal")
+
+fit_ph4 <- phreg(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data2, dist = "loglogistic")
+```
+
+```{r}
+par(mfrow = c(2, 2))
+check.dist(fit_ph1, fit_cox1)
+check.dist(fit_ph2, fit_cox1)
+check.dist(fit_ph3, fit_cox1)
+check.dist(fit_ph4, fit_cox1)
+```
+
+## the closest one
+```{r}
+fit_ph2 <- phreg(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data2, dist = "gompertz")
+
+fit_cox1 = coxreg(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data2)
+
+check.dist(fit_ph2, fit_cox1)
+```
+
+## AFT and Parametric PH with gompertz
+```{r}
+fit_ph2 <- phreg(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data2, dist = "gompertz")
+fit_aft1 <- aftreg(Surv(N_Days, Status) ~ Age + Edema + Bilirubin + Albumin + Copper + Prothrombin + Stage + SGOT, data = data2, dist = "gompertz")
+
+max(fit_ph2$loglik)
+max(fit_aft1$loglik)
+
+
+```
 
