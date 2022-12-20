@@ -4,6 +4,7 @@ output: github_document
 author: "Yida Wang"
 date: "2022-10-15"
 ---
+
 # Sample Size Analysis
 
 ```{r setup, include=FALSE}
@@ -61,6 +62,7 @@ control_1=data_no_na %>%
 control_1%>% 
   count(drug)
 ```
+
 ```{r}
 treatment_1=data_no_na %>% 
   filter(drug=="D-penicillamine") %>% 
@@ -68,6 +70,7 @@ treatment_1=data_no_na %>%
 treatment_1%>% 
   count(drug)
 ```
+
 ```{r}
 mean1=mean(control_1$n_days)
 mean2=mean(treatment_1$n_days)
@@ -80,6 +83,13 @@ sd2
 sd_pooled=sqrt((sd1^2+sd2^2)/2)
 es=(mean1-mean2)/sd_pooled
 es
+```
+
+```{r}
+median1=median(control_1$n_days)
+median2=median(treatment_1$n_days)
+es1=(median1-median2)/sd_pooled
+es1
 ```
 
 80%power-Z:0.84
@@ -101,6 +111,7 @@ power1
 ```{r}
 plot(power1)
 ```
+
 ```{r}
 expLogMeanDeaths = function(Delta, alpha, pwr){
   z.alpha = qnorm(alpha, lower.tail=F)
@@ -142,6 +153,14 @@ pbc_data_1 =
 
 futime=Surv(pbc_data_1$n_days,pbc_data_1$status)
 ```
+# distribution of raw
+```{r}
+library(ggplot2)
+ggplot(pbc_data_1, aes(x=n_days, fill=factor(drug))) + 
+  geom_density(alpha=0.25)+
+  labs(title = "Distribution of Survival Time for Two Group")
+#hist(pbc_data_1$n_days)
+```
 
 ```{r}
 res.cox <- coxph(futime ~ drug + age + sex + ascites + hepatomegaly + 
@@ -165,6 +184,5 @@ strata1 <- coxph(futime ~ drug + age + strata(sex) + ascites + hepatomegaly +
 
 plot(surv_fit(strata1, pbc_data_1))
 
-##can't use autoplot??
 ```
 
